@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  site-monitor:
+    build: .
+    container_name: EDservice-monitor
+    restart: always
+    environment:
+      - URL=https://edservicetx.com/
+      - CHECK_INTERVAL=3600
+      - BOT_TOKEN=${BOT_TOKEN}
+      - CHAT_ID=${CHAT_ID}
+    volumes:
+      - ./logs:/app/logs
