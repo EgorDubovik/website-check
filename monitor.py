@@ -98,14 +98,6 @@ def telegram_bot_polling():
                                 
                                 send_telegram_message(chat_id, response_text)
                             
-                            # Команда /status
-                            elif text == '/status':
-                                if last_status is None:
-                                    status_text = "Статус: Еще не проверялся"
-                                else:
-                                    status_text = f"Статус: {'🟢 Работает' if last_status else '🔴 Не работает'}\nURL: {URL}\nОшибок подряд: {error_count}"
-                                
-                                send_telegram_message(chat_id, status_text)
                             
                             # Команда /help
                             elif text in ['/help', '/start']:
