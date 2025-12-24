@@ -24,9 +24,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Счетчик ошибок
+# Счетчик ошибок и время последнего алерта
 error_count = 0
 last_status = None
+last_alert_time = None
+ALERT_INTERVAL = 3600  # Минимальный интервал между алертами (1 час)
 
 def send_telegram_message(chat_id, text):
     """Отправляет сообщение в Telegram."""
@@ -98,10 +100,9 @@ def telegram_bot_polling():
                                 
                                 send_telegram_message(chat_id, response_text)
                             
-                            
                             # Команда /help
                             elif text in ['/help', '/start']:
-                                help_text = f"Мониторинг сайта\nURL: {URL}\n\nКоманды:\n/ping - проверить сейчас\n/status - текущий статус"
+                                help_text = f"Мониторинг сайта\nURL: {URL}\n\nКоманды:\n/ping - проверить сейчас"
                                 send_telegram_message(chat_id, help_text)
             
         except:
@@ -109,34 +110,56 @@ def telegram_bot_polling():
 
 def website_monitor():
     """Мониторинг сайта в фоновом режиме."""
-    global error_count, last_status
+    global error_count, last_status, last_alert_time
     
     logger.info(f"Запуск мониторинга: {URL}")
     
     while True:
         try:
             status, code = check_website()
+            current_time = time.time()
             
             if status:
                 logger.info(f"✅ Сайт доступен, статус: {code}")
                 
                 # Если сайт был недоступен, а теперь восстановился
                 if last_status == False and error_count > 0:
-                    message = f"✅ Сайт восстановлен\nURL: {URL}\nВремя: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                    message = f"✅ Сайт восстановлен!\n\nURL: {URL}\nСтатус: 200 OK\nВремя: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\nСайт снова доступен после {error_count} неудачных проверок."
                     send_telegram_message(CHAT_ID, message)
                     error_count = 0
+                    last_alert_time = None
                 
                 last_status = True
                 
             else:
                 error_count += 1
-                logger.error(f"❌ Сайт не доступен, ошибка: {code}")
+                logger.error(f"❌ Сайт не доступен, ошибка: {code}, счетчик ошибок: {error_count}")
                 last_status = False
                 
-                # Отправляем алерт после 2х ошибок подряд
-                if error_count == 2:
-                    message = f"🚨 Сайт не доступен\nURL: {URL}\nОшибка: {code}\nВремя: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                    send_telegram_message(CHAT_ID, message)
+                # Проверяем, нужно ли отправлять алерт
+                should_send_alert = False
+                
+                # Если это первая ошибка после восстановления
+                if error_count == 1:
+                    should_send_alert = True
+                
+                # Или если прошло достаточно времени с последнего алерта
+                elif last_alert_time and (current_time - last_alert_time >= ALERT_INTERVAL):
+                    should_send_alert = True
+                
+                # Или если это вторая ошибка подряд (первый алерт)
+                elif error_count == 2:
+                    should_send_alert = True
+                
+                if should_send_alert:
+                    if error_count == 1:
+                        message = f"⚠️ Первая ошибка обнаружена\n\nURL: {URL}\nОшибка: {code}\nВремя: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\nСледующая проверка через {CHECK_INTERVAL//60} минут."
+                    else:
+                        message = f"🚨 Сайт не доступен!\n\nURL: {URL}\nОшибка: {code}\nВремя: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\nОшибок подряд: {error_count}\nСледующая проверка через {CHECK_INTERVAL//60} минут."
+                    
+                    if send_telegram_message(CHAT_ID, message):
+                        last_alert_time = current_time
+                        logger.info(f"Алерт отправлен, счетчик ошибок: {error_count}")
             
             time.sleep(CHECK_INTERVAL)
             
@@ -151,6 +174,8 @@ def main():
         return
     
     logger.info("Запуск системы мониторинга...")
+    logger.info(f"Интервал проверки: {CHECK_INTERVAL} секунд ({CHECK_INTERVAL//60} минут)")
+    logger.info(f"Минимальный интервал между алертами: {ALERT_INTERVAL} секунд")
     
     # Запуск мониторинга в фоне
     monitor_thread = threading.Thread(target=website_monitor, daemon=True)

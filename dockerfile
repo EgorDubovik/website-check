@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY monitor.py .
 
 # Бот токен
-ENV BOT_TOKEN="8568393653:AAEcvcUpCyYFlvp73O-a1pX5SipfWuTPggA"
+ENV BOT_TOKEN="8444195814:AAEB5WrubcIlPYJUmREp414Gaa6N44BmntY"
 
 # Запускаем скрипт при старте контейнера
 CMD ["python", "monitor.py"]
